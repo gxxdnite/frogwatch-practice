@@ -367,7 +367,7 @@ function shareUI(c, code, sst, sec) {
   const now = c.share ? c.share.access : "device";
   const seg2 = h("div", { class: "seg" }, [["device", "Keep on this device"], ["public", "Share publicly"], ["request", "Share, approve requests"]].map(([v, l]) => h("button", { class: now === v ? "on" : "", onclick: () => setAcc(v) }, l)));
   return [
-    sec("5. Share with volunteers", SHARED ? "Public chapters appear in everyone's search and are open for anyone. Anyone can find the chapter but only people you approve can access it."),
+    sec("5. Share with volunteers", SHARED ? "Public chapters appear in everyone's search and are open for anyone. Anyone can find the chapter but only people you approve can access it." : "Shared chapters are off until Firebase is set up (see the notes at the top of this file). You can still send an offline share code."),
     SHARED ? [seg2, msg] : "",
     SHARED && c.share && c.share.access === "request" ? [h("button", { class: "ghost", style: "margin-top:10px", onclick: loadReq }, "Check access requests"), rq] : "",
     SHARED && c.share ? h("p", { class: "note" }, "Edits are saved automatically.") : "",
