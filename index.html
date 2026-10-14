@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<!--
+SHARED CHAPTERS SETUP (one time, free). Without it the app still works, but chapters stay on this device.
+1. Go to console.firebase.google.com and add a project (Analytics can be off).
+2. Build > Realtime Database > Create database (locked mode is fine).
+3. Build > Authentication > Get started > Sign-in method > Anonymous > Enable.
+4. Realtime Database > Rules tab: replace everything with the rules below, then Publish.
+5. Project settings (gear) > General: copy the Web API key (add a web app with the </> icon if none exists).
+   Realtime Database > Data tab: copy the database URL.
+6. Paste both into FB_URL and FB_KEY near the top of the script below.
+
+RULES:
+{
+ "rules": {
+  "directory": {
+   ".read": true,
+   "$cid": {
+    ".write": "auth != null && (!data.exists() || data.child('owner').val() === auth.uid)",
+    ".validate": "!newData.exists() || newData.child('owner').val() === auth.uid"
+   }
+  },
+  "chapters": {
+   "$cid": {
+    ".read": "auth != null && (root.child('directory/'+$cid+'/access').val() === 'public' || root.child('directory/'+$cid+'/owner').val() === auth.uid || root.child('members/'+$cid+'/'+auth.uid).val() === true)",
+    ".write": "auth != null && root.child('directory/'+$cid+'/owner').val() === auth.uid"
+   }
+  },
+  "members": {
+   "$cid": {
+    ".write": "auth != null && root.child('directory/'+$cid+'/owner').val() === auth.uid"
+   }
+  },
+  "requests": {
+   "$cid": {
+    ".read": "auth != null && root.child('directory/'+$cid+'/owner').val() === auth.uid",
+    ".write": "auth != null && root.child('directory/'+$cid+'/owner').val() === auth.uid",
+    "$uid": {
+     ".read": "auth != null && $uid === auth.uid",
+     ".write": "auth != null && $uid === auth.uid"
+    }
+   }
+  }
+ }
+}
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frog &amp; Toad Call Trainer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐸</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f1411;--panel:#17201a;--bg2:#1d2a21;--bd:#2c3d31;--tx:#e6ece7;--dim:#8fa095;--ok:#4f8a60;--bad:#a15c57;--ac:#a8d08d;--d:"Fraunces",Georgia,serif;--b:"IBM Plex Sans",-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--tx);font-family:var(--b);display:flex;justify-content:center;padding:28px 16px 60px}
+.wrap{width:100%;max-width:720px}
+h1{font-family:var(--d);font-size:2.1rem;margin:0 0 8px}
+h2{font-family:var(--d);font-size:1.35rem;margin:0 0 10px}
+p.sub{color:var(--dim);margin:0 0 24px;line-height:1.55}
+button{font:inherit;color:var(--tx);cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.panel{background:var(--panel);border:1px solid var(--bd);border-radius:10px;padding:18px 20px;margin-bottom:16px}
+.big{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--bd);border-radius:10px;padding:20px;margin-bottom:14px}
+.big:hover{border-color:var(--ac)}
+.big b{display:block;font-family:var(--d);font-size:1.3rem;margin-bottom:4px;font-weight:600}
+.big span{color:var(--dim);font-size:.92rem}
+.btn{background:var(--ac);color:#12200f;border:0;border-radius:8px;padding:9px 16px;font-weight:600}
+.ghost{background:none;border:1px solid var(--bd);border-radius:8px;padding:6px 12px;font-size:.85rem}
+.ghost:hover{border-color:var(--dim)}
+.danger{color:#e0a09b}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{background:var(--bg2);border:1px solid var(--bd);border-radius:999px;padding:5px 11px;font-size:.82rem}
+.chip.on{background:var(--ac);color:#12200f;border-color:var(--ac)}
+.chip .x{margin-left:7px;opacity:.65;cursor:pointer}
+input[type=text],input[type=number]{width:100%;background:var(--bg2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:9px 11px;font:inherit}
+label{display:block;font-size:.8rem;color:var(--dim);margin:14px 0 5px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+.sug{position:relative}
+.sug>div{position:absolute;z-index:5;left:0;right:0;background:var(--bg2);border:1px solid var(--bd);border-radius:8px;max-height:230px;overflow:auto}
+.sug button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 11px}
+.sug button:hover{background:var(--panel)}
+.sug i{color:var(--dim);margin-left:8px;font-size:.8rem}
+.seg{display:inline-flex;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+.seg button{background:var(--bg2);color:var(--dim);border:0;padding:7px 12px;font-size:.85rem}
+.seg .on{background:var(--ac);color:#12200f}
+.opt{display:block;width:100%;text-align:left;background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin-bottom:8px}
+.opt:hover:not(:disabled){border-color:var(--ac)}
+.opt.ok{background:var(--ok);border-color:var(--ok)}
+.opt.bad{background:var(--bad);border-color:var(--bad)}
+.clip{margin:12px 0}
+audio{width:100%}
+.fb{margin:12px 0;padding:10px 12px;border-radius:8px;display:none}
+.fb.ok{display:block;background:#173022}
+.fb.bad{display:block;background:#33201e}
+.warn{background:#3a3417;border:1px solid #6b5f1f;color:#f0e2a0;border-radius:8px;padding:9px 12px;font-size:.85rem;line-height:1.45}
+.note{color:var(--dim);font-size:.85rem}
+.err{color:#e0a09b}
+.item{display:flex;justify-content:space-between;align-items:center;gap:12px}
+a{color:var(--ac)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+(() => {
+const API = "https://api.inaturalist.org/v1", AMPH = 20978, KEY = "frogTrainerV1";
+const app = document.getElementById("app");
+
+// ---- tiny DOM helper ----
+const h = (t, a = {}, ...k) => {
+  const e = document.createElement(t);
+  for (const [x, v] of Object.entries(a)) {
+    if (x === "class") e.className = v;
+    else if (x === "value") e.value = v;
+    else if (x.startsWith("on")) e.addEventListener(x.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(x, v === true ? "" : v);
+  }
+  k.flat(9).forEach((c) => e.append(c instanceof Node ? c : document.createTextNode(c == null ? "" : c)));
+  return e;
+};
+// replaceChildren that also accepts arrays (lists of elements) and skips empty values
+const _rc = Element.prototype.replaceChildren;
+Element.prototype.replaceChildren = function (...k) { return _rc.apply(this, k.flat(9).filter((c) => c !== "" && c != null && c !== false)); };
+const uid = () => Math.random().toString(36).slice(2, 9);
+const sf = async (u) => { const r = await fetch(u); if (!r.ok) throw Error("iNaturalist returned " + r.status); return r.json(); };
+const deb = (f, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f(...a), ms); }; };
+const shuf = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+const lab = (s) => s.common || s.name || s.q;
+
+// ---- shared chapters (Firebase). Fill these in; see setup notes at the top of the file ----
+const FB_URL = "https://frogwatch-practice-default-rtdb.firebaseio.com";   // e.g. https://your-project-default-rtdb.firebaseio.com
+const FB_KEY = "AIzaSyDfglPkl01VIP0brl6nasfsQKmnBdAqeoQ";   // Web API key from Firebase project settings
+const SHARED = !!(FB_URL && FB_KEY);
+let tok = null;
+async function auth() {
+  if (tok && tok.exp > Date.now() + 60000) return tok;
+  let st = null; try { st = JSON.parse(localStorage.getItem("frogAuth")); } catch (e) {}
+  let r = null;
+  if (st && st.refresh) {
+    try {
+      const j = await (await fetch(`https://securetoken.googleapis.com/v1/token?key=${FB_KEY}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(st.refresh) })).json();
+      if (j.id_token) r = { idToken: j.id_token, refreshToken: j.refresh_token, localId: j.user_id, expiresIn: j.expires_in };
+    } catch (e) {}
+  }
+  if (!r) r = await (await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FB_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnSecureToken: true }) })).json();
+  if (!r.idToken) throw Error("Sign-in failed: " + ((r.error && r.error.message) || "no response"));
+  tok = { id: r.idToken, uid: r.localId, exp: Date.now() + Number(r.expiresIn) * 1000 };
+  try { localStorage.setItem("frogAuth", JSON.stringify({ refresh: r.refreshToken })); } catch (e) {}
+  return tok;
+}
+async function db(method, path, body) {
+  const t = await auth();
+  const res = await fetch(`${FB_URL.replace(/\/$/, "")}/${path}.json?auth=${t.id}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (res.status === 401 || res.status === 403) throw Error("denied");
+  if (!res.ok) throw Error("Database returned " + res.status);
+  return res.json();
+}
+async function publish(c) {
+  await fix();
+  const t = await auth(), cid = c.share.cid || (c.share.cid = uid() + uid());
+  const { share, ...rest } = c;
+  await db("PUT", `directory/${cid}`, { name: c.name || "Untitled", host: c.host || "", area: areaText(c), access: c.share.access, owner: t.uid, n: c.species.length, at: Date.now() });
+  await db("PUT", `chapters/${cid}`, { json: JSON.stringify({ chapter: rest, presets: D.presets, subs: D.subs }) });
+  lsave();
+}
+function explain(e) {
+  const m = (e && e.message) || "";
+  if (m === "denied") return "Firebase rejected the request. Check that the rules were pasted and published (Realtime Database > Rules).";
+  if (/CONFIGURATION_NOT_FOUND|OPERATION_NOT_ALLOWED|ADMIN_ONLY_OPERATION/.test(m)) return "Anonymous sign-in isn't enabled. In Firebase go to Build > Authentication > Get started > Sign-in method > Anonymous > Enable.";
+  if (/API_KEY|API key|INVALID_KEY/i.test(m)) return "The Web API key looks wrong. Re-copy it from Project settings > General.";
+  if (/404/.test(m)) return "The database URL looks wrong. Copy it again from the Realtime Database Data tab.";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Couldn't connect. Check your internet and that FB_URL starts with https:// and has no extra spaces.";
+  return m || "unknown error";
+}
+async function unshare(cid) { for (const k of ["chapters", "members", "requests", "directory"]) await db("DELETE", `${k}/${cid}`); }
+
+// ---- STARTER DATA (edit here, or just use the in-app editors) ----
+// Species are written by common name; the app looks up the iNaturalist IDs itself.
+const S = (...n) => n.map((q) => ({ id: null, q }));
+const SEED = {
+  presets: [
+    { id: "p1", name: "Gray treefrogs", callType: "Fast pulsed trill", species: S("Cope's Gray Treefrog", "Eastern Gray Treefrog") },
+    { id: "p2", name: "Peeper & chorus frogs", callType: "High peeps and rising trills", species: S("Spring Peeper", "Upland Chorus Frog", "Southern Chorus Frog") },
+    { id: "p3", name: "Trilling toads", callType: "Long, steady musical trill", species: S("American Toad", "Fowler's Toad", "Southern Toad") },
+    { id: "p4", name: "Leopard & pickerel", callType: "Chuckles, clucks and snores", species: S("Southern Leopard Frog", "Pickerel Frog") },
+    { id: "p5", name: "Big green twangs", callType: "Deep twangs and grunts", species: S("American Bullfrog", "Green Frog", "Pig Frog") },
+  ],
+  subs: [
+    { id: "s1", main: "p2", name: "Alabama chorus frogs", places: [{ name: "Alabama" }], custom: [], tags: "trill, late winter", species: S("Upland Chorus Frog", "Southern Chorus Frog") },
+  ],
+  chapters: [
+    { id: "c1", name: "Example FrogWatch USA chapter (edit me)", host: "Your zoo, aquarium, or partner organization", coordinator: "", notes: "", places: [{ name: "Alabama" }], custom: [],
+      species: S("Spring Peeper", "Cope's Gray Treefrog", "Green Treefrog", "Squirrel Treefrog", "Pine Woods Treefrog", "Barking Treefrog", "Southern Leopard Frog", "American Bullfrog", "Green Frog", "Southern Toad", "Fowler's Toad", "Eastern Narrow-mouthed Toad", "Upland Chorus Frog", "Southern Chorus Frog") },
+  ],
+};
+
+// ---- saved data (lives in this browser) ----
+let D;
+try { D = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+if (!D || !D.presets || !D.chapters) D = structuredClone(SEED);
+if (!D.subs) D.subs = [];
+const shape = () => {
+D.chapters.forEach((c) => { c.places = c.places || (c.place ? [c.place] : []); delete c.place; c.custom = (c.custom || []).map((q) => (typeof q === "string" ? { name: q } : q)); c.host = c.host || ""; c.coordinator = c.coordinator || ""; c.notes = c.notes || ""; });
+D.subs.forEach((x) => { x.places = x.places || (x.place ? [x.place] : []); delete x.place; x.custom = (x.custom || []).map((c) => (typeof c === "string" ? { name: c } : c)); });
+};
+shape();
+const lsave = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} };
+let pushT;
+const save = () => {
+  lsave();
+  if (SHARED && chapter && chapter.share && chapter.share.cid && cur === editChapter) { clearTimeout(pushT); pushT = setTimeout(() => publish(chapter).catch(() => {}), 2000); }
+};
+
+// ---- look up IDs for starter species / places ----
+async function resolve(list) {
+  let ch = false;
+  for (const s of list) {
+    if (s.id) continue;
+    try {
+      const r = (await sf(`${API}/taxa?q=${encodeURIComponent(s.q)}&rank=species&is_active=true&taxon_id=${AMPH}&per_page=5`)).results || [];
+      const t = r.find((t) => norm(t.preferred_common_name) === norm(s.q) || norm(t.name) === norm(s.q)) || r[0];
+      if (t) { s.id = t.id; s.name = t.name; s.common = t.preferred_common_name || t.name; ch = true; }
+    } catch (e) {}
+  }
+  return ch;
+}
+async function fixAll() {
+  let c = await resolve([...D.presets, ...D.subs, ...D.chapters].flatMap((x) => x.species));
+  for (const pl of [...D.chapters.flatMap((x) => x.places), ...D.subs.flatMap((x) => x.places)].filter((p) => p && !p.id)) {
+    try {
+      const p = ((await sf(`${API}/places/autocomplete?q=${encodeURIComponent(pl.name)}&per_page=1`)).results || [])[0];
+      if (p) { pl.id = p.id; pl.name = p.display_name; c = true; }
+    } catch (e) {}
+  }
+  if (c) save();
+  return c;
+}
+let fx = null;
+const fix = () => fx || (fx = fixAll().finally(() => { fx = null; }));
+
+// ---- search-as-you-type picker ----
+function picker(ph, search, render, pick) {
+  const inp = h("input", { type: "text", placeholder: ph }), box = h("div", { style: "display:none" });
+  const run = deb(async (q) => {
+    if (q.length < 2) { box.style.display = "none"; return; }
+    try {
+      const r = await search(q);
+      box.replaceChildren(...r.map((x) => h("button", { onclick: () => { pick(x); inp.value = ""; box.style.display = "none"; } }, render(x))));
+      box.style.display = r.length ? "block" : "none";
+    } catch (e) { box.style.display = "none"; }
+  }, 300);
+  inp.addEventListener("input", () => run(inp.value));
+  return h("div", { class: "sug" }, inp, box);
+}
+document.addEventListener("click", (e) => document.querySelectorAll(".sug>div").forEach((b) => { if (!b.parentNode.contains(e.target)) b.style.display = "none"; }));
+
+const spSearch = async (q) => ((await sf(`${API}/taxa/autocomplete?q=${encodeURIComponent(q)}&taxon_id=${AMPH}&per_page=10&is_active=true`)).results || []).filter((t) => t.rank === "species");
+const spRender = (t) => [t.preferred_common_name || t.name, h("i", {}, t.name)];
+const toSp = (t) => ({ id: t.id, name: t.name, common: t.preferred_common_name || t.name });
+const placeSearch = async (q) => (await sf(`${API}/places/autocomplete?q=${encodeURIComponent(q)}&per_page=8`)).results || [];
+
+// species list editor: chips with × plus an amphibian search box
+function spEditor(list, onChange) {
+  const chips = h("div", { class: "chips" });
+  const draw = () => chips.replaceChildren(...list.map((s, i) =>
+    h("span", { class: "chip" }, lab(s), h("span", { class: "x", title: "Remove", onclick: () => { list.splice(i, 1); onChange(); draw(); } }, "×"))));
+  draw();
+  const el = h("div", {}, chips, picker("Add a species — search by common or scientific name", spSearch, spRender, (t) => {
+    if (!list.some((s) => s.id === t.id)) { list.push(toSp(t)); onChange(); draw(); }
+  }));
+  el.redraw = draw;
+  return el;
+}
+
+// ---- navigation ----
+let ep, tagSel, cur, back, mode, chapter, place, pid, pool, ans = "choice", n = 1, sc = { c: 0, t: 0 }, recent = [], used = new Set(), qn = 0, ui, current;
+const go = (f) => { cur = f; f(); window.scrollTo(0, 0); };
+
+function home() {
+  app.replaceChildren(
+    h("h1", {}, "Frog & Toad Call Trainer"),
+    h("p", { class: "sub" }, "Practice frog and toad calls with real, Research Grade recordings from iNaturalist. Made for FrogWatch USA chapters; this is an unofficial tool, not affiliated with FrogWatch USA or the AZA."),
+    h("button", { class: "big", onclick: () => startQuiz("free") }, h("b", {}, "Free use"), h("span", {}, "General practice with any amphibian, with an optional location filter.")),
+    h("button", { class: "big", onclick: () => go(chapters) }, h("b", {}, "FrogWatch USA chapter"), h("span", {}, "Set up or choose your chapter, then practice only its local frogs and toads.")),
+    h("div", { class: "row" },
+      h("button", { class: "ghost", onclick: () => { back = home; go(presets); } }, "Manage soundalike presets"),
+      h("button", { class: "ghost danger", onclick: () => { if (confirm("Replace all chapters and presets with the starter set?")) { D = structuredClone(SEED); save(); home(); fix().then((c) => c && cur === home && home()); } } }, "Reset to starter data")),
+  );
+}
+
+const areaText = (x) => [...x.places.map((p) => p.name), ...x.custom.map((b) => b.name)].join(", ") || "all locations";
+const enc = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const dec = (t) => JSON.parse(decodeURIComponent(escape(atob(t.trim()))));
+function importCode(t) {
+  const o = dec(t);
+  if (!o || !o.chapter) throw Error("bad code");
+  o.chapter.id = uid(); D.chapters.push(o.chapter);
+  (o.presets || []).forEach((p) => { if (!D.presets.some((x) => x.id === p.id)) D.presets.push(p); });
+  (o.subs || []).forEach((p) => { if (!D.subs.some((x) => x.id === p.id)) D.subs.push(p); });
+  shape(); save();
+}
+const taStyle = "width:100%;height:80px;background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px;font:inherit";
+
+function mergeBundle(b, cid) {
+  const mg = (arr, list) => (arr || []).forEach((p) => { const ex = list.find((y) => y.id === p.id); if (!ex) list.push({ ...p, from: cid }); else if (ex.from === cid) Object.assign(ex, p, { from: cid }); });
+  mg(b.presets, D.presets); mg(b.subs, D.subs); shape(); lsave();
+}
+
+async function accessForm(m, box) {
+  const t = await auth();
+  let mine = null; try { mine = await db("GET", `requests/${m.cid}/${t.uid}`); } catch (e) {}
+  if (mine) { box.className = "note"; box.textContent = "Your request is pending. Ask the chapter coordinator to approve it, then open the chapter again."; return; }
+  const nm = h("input", { type: "text", placeholder: "Your name" }), nt = h("input", { type: "text", placeholder: "Note to the coordinator (optional)" });
+  box.className = "";
+  box.replaceChildren(h("p", { class: "note" }, "This chapter needs its coordinator's approval."), nm, h("div", { style: "height:6px" }), nt,
+    h("button", { class: "btn", style: "margin-top:8px", onclick: async () => {
+      if (!nm.value.trim()) return;
+      try { await db("PUT", `requests/${m.cid}/${t.uid}`, { name: nm.value.trim().slice(0, 80), note: nt.value.trim().slice(0, 200), at: Date.now() }); box.className = "note"; box.textContent = "Request sent. You can open this chapter once the coordinator approves it."; }
+      catch (e) { box.textContent = "Couldn't send the request."; }
+    } }, "Request access"));
+}
+
+async function openRemote(m, box) {
+  box.className = "note"; box.textContent = "Opening…";
+  try {
+    const t = await auth(), mine = m.owner === t.uid ? D.chapters.find((c) => c.share && c.share.cid === m.cid) : null;
+    if (mine) { chapter = mine; startQuiz("chapter"); return; }
+    const r = await db("GET", `chapters/${m.cid}`);
+    if (!r || !r.json) throw Error("empty");
+    const bd = JSON.parse(r.json), c = bd.chapter;
+    mergeBundle(bd, m.cid);
+    chapter = { ...c, places: c.places || [], custom: c.custom || [], species: c.species || [] };
+    startQuiz("chapter");
+  } catch (e) {
+    if (e.message === "denied") accessForm(m, box); else { box.className = "note err"; box.textContent = "Couldn't open that chapter. Check your connection and try again."; }
+  }
+}
+
+function shareUI(c, code, sst, sec) {
+  const msg = h("div", { class: "note", style: "margin-top:8px" }), rq = h("div");
+  const setAcc = async (v) => {
+    msg.className = "note"; msg.textContent = "Saving…";
+    try {
+      if (v === "device") {
+        if (!c.share) { msg.textContent = ""; return; }
+        if (!confirm("Remove this chapter from the shared directory? It stays on this device.")) { msg.textContent = ""; return; }
+        if (c.share.cid) await unshare(c.share.cid);
+        delete c.share; lsave();
+      } else { c.share = c.share || {}; c.share.access = v; await publish(c); }
+    } catch (e) { msg.className = "note err"; msg.textContent = "Couldn't publish: " + explain(e); return; }
+    editChapter();
+  };
+  const loadReq = async () => {
+    rq.textContent = "Loading…";
+    try {
+      const r = (await db("GET", `requests/${c.share.cid}`)) || {}, ids = Object.keys(r);
+      rq.replaceChildren(...(ids.length ? ids.map((u) => h("div", { class: "panel item", style: "background:var(--bg2);margin-top:8px" },
+        h("div", {}, h("b", {}, r[u].name || "Someone"), h("div", { class: "note" }, r[u].note || "")),
+        h("div", { class: "row" },
+          h("button", { class: "btn", onclick: async () => { await db("PUT", `members/${c.share.cid}/${u}`, true); await db("DELETE", `requests/${c.share.cid}/${u}`); loadReq(); } }, "Approve"),
+          h("button", { class: "ghost", onclick: async () => { await db("DELETE", `requests/${c.share.cid}/${u}`); loadReq(); } }, "Deny")))) : [h("p", { class: "note" }, "No pending requests.")]));
+    } catch (e) { rq.textContent = "Couldn't load requests."; }
+  };
+  const now = c.share ? c.share.access : "device";
+  const seg2 = h("div", { class: "seg" }, [["device", "Keep on this device"], ["public", "Share publicly"], ["request", "Share, approve requests"]].map(([v, l]) => h("button", { class: now === v ? "on" : "", onclick: () => setAcc(v) }, l)));
+  return [
+    sec("5. Share with volunteers", SHARED ? "Public chapters appear in everyone's search and open for anyone. With approval, anyone can find the chapter but only people you approve can open it." : "Shared chapters are off until Firebase is set up (see the notes at the top of this file). You can still send an offline share code."),
+    SHARED ? [seg2, msg] : "",
+    SHARED && c.share && c.share.access === "request" ? [h("button", { class: "ghost", style: "margin-top:10px", onclick: loadReq }, "Check access requests"), rq] : "",
+    SHARED && c.share ? h("p", { class: "note" }, "Edits are published automatically a couple of seconds after you make them.") : "",
+    h("button", { class: "ghost", style: "margin-top:10px", onclick: async () => {
+      code.value = enc({ v: 1, chapter: c, presets: D.presets, subs: D.subs }); code.style.display = "block"; code.select();
+      try { await navigator.clipboard.writeText(code.value); sst.textContent = "Copied. Volunteers can paste it under “Import a chapter”."; } catch (e) { sst.textContent = "Copy the code above and send it to your volunteers."; }
+    } }, "Create offline share code"), code, sst,
+  ];
+}
+
+function chapters() {
+  const ta = h("textarea", { placeholder: "Paste a chapter share code", style: taStyle }), ist = h("div", { class: "note", style: "margin-top:6px" });
+  const q = h("input", { type: "text", placeholder: "Search by chapter name, host, or area" }), res = h("div"), dmsg = h("div", { class: "note", style: "margin-top:8px" }), ak = h("input", { type: "text", placeholder: "Paste an account key to restore" });
+  let dir = {};
+  const draw = () => {
+    const f = norm(q.value);
+    const rows = Object.entries(dir).map(([cid, m]) => ({ cid, ...m })).filter((m) => !f || norm(`${m.name} ${m.host} ${m.area}`).includes(f)).sort((x, y) => (y.at || 0) - (x.at || 0)).slice(0, 30);
+    res.replaceChildren(...(rows.length ? rows.map((m) => { const box = h("div"); return h("div", { class: "panel" },
+      h("div", { class: "item" }, h("div", {}, h("b", {}, m.name), h("div", { class: "note" }, [m.host, m.area, `${m.n || 0} species`, m.access === "request" ? "Access by request" : "Public"].filter(Boolean).join(" · "))),
+        h("button", { class: "btn", onclick: () => openRemote(m, box) }, "Open")), box); }) : [h("p", { class: "note" }, "No chapters found.")]));
+  };
+  q.addEventListener("input", draw);
+  if (SHARED) { dmsg.textContent = "Loading chapters…"; db("GET", "directory").then((d) => { dir = d || {}; dmsg.textContent = ""; draw(); }).catch((e) => { dmsg.className = "note err"; dmsg.textContent = "Couldn't load the shared directory: " + explain(e); }); }
+  app.replaceChildren(
+    h("button", { class: "ghost", onclick: () => go(home) }, "← Menu"),
+    h("h2", { style: "margin-top:14px" }, "Find your FrogWatch USA chapter"),
+    SHARED ? [q, dmsg, res] : h("p", { class: "note" }, "Shared chapters are off. Add your Firebase details at the top of the file (setup notes are in the comment at the very top) to search and open chapters from everyone. Chapters on this device still work."),
+    h("h2", { style: "margin-top:26px" }, "My chapters"),
+    D.chapters.length ? "" : h("p", { class: "note" }, "None yet. Set one up or import a share code from your coordinator."),
+    D.chapters.map((c) => h("div", { class: "panel item" },
+      h("button", { class: "big", style: "flex:1;margin:0;border:0;padding:0;background:none", onclick: () => { chapter = c; startQuiz("chapter"); } },
+        h("b", {}, c.name), h("span", {}, [c.host, c.places.length + c.custom.length ? areaText(c) : "No service area set", `${c.species.length} species`, c.share ? (c.share.access === "request" ? "Shared by request" : "Shared publicly") : "This device only"].filter(Boolean).join(" · "))),
+      h("button", { class: "ghost", onclick: () => { chapter = c; go(editChapter); } }, "Edit"))),
+    h("button", { class: "btn", onclick: () => { const c = { id: uid(), name: "New chapter", host: "", coordinator: "", notes: "", places: [], custom: [], species: [] }; D.chapters.push(c); save(); chapter = c; go(editChapter); } }, "Set up a chapter"),
+    h("label", {}, "Import a chapter from a share code"), ta,
+    h("button", { class: "ghost", style: "margin-top:8px", onclick: () => {
+      try { importCode(ta.value); chapters(); fix().then((c) => c && cur === chapters && chapters()); }
+      catch (e) { ist.className = "note err"; ist.textContent = "That code didn't work. Copy the whole share code and try again."; }
+    } }, "Import chapter"), ist,
+    SHARED ? h("div", {}, h("label", {}, "Account key"),
+      h("p", { class: "note", style: "margin:0 0 6px" }, "This key proves you own the chapters you share, including on another device. Keep it private: anyone with it can edit your shared chapters."),
+      h("button", { class: "ghost", onclick: async () => {
+        try { await auth(); const k = JSON.parse(localStorage.getItem("frogAuth")).refresh;
+          try { await navigator.clipboard.writeText(k); ist.className = "note"; ist.textContent = "Account key copied."; } catch (e) { ak.value = k; ist.textContent = "Copy the key from the box below."; }
+        } catch (e) { ist.className = "note err"; ist.textContent = "Couldn't reach Firebase."; }
+      } }, "Copy my account key"),
+      h("div", { style: "height:8px" }), ak,
+      h("button", { class: "ghost", style: "margin-top:8px", onclick: async () => {
+        try {
+          const j = await (await fetch(`https://securetoken.googleapis.com/v1/token?key=${FB_KEY}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(ak.value.trim()) })).json();
+          if (!j.id_token) throw Error("bad");
+          localStorage.setItem("frogAuth", JSON.stringify({ refresh: j.refresh_token })); tok = null; ist.className = "note"; ist.textContent = "Account key restored.";
+        } catch (e) { ist.className = "note err"; ist.textContent = "That key didn't work."; }
+      } }, "Restore account key")) : "");
+}
+
+function editChapter() {
+  const c = chapter, st = h("div", { class: "note", style: "margin-top:8px" }), sst = h("div", { class: "note", style: "margin-top:8px" });
+  const inp = (k, ph) => { const i = h("input", { type: "text", value: c[k] || "", placeholder: ph }); i.oninput = () => { c[k] = i.value; save(); }; return i; };
+  const sec = (t, d) => [h("h3", { style: "font-family:var(--d);font-size:1.05rem;margin:24px 0 4px" }, t), d ? h("p", { class: "note", style: "margin:0 0 6px" }, d) : ""];
+  const se = spEditor(c.species, save);
+  const code = h("textarea", { readonly: true, style: taStyle + ";display:none;margin-top:8px" });
+  app.replaceChildren(
+    h("button", { class: "ghost", onclick: () => go(chapters) }, "← Done"),
+    h("h2", { style: "margin-top:14px" }, "Set up your FrogWatch USA chapter"),
+    h("p", { class: "note", style: "margin:0" }, "Everything saves automatically as you type. Tap Done when you're finished."),
+    sec("1. About your chapter"),
+    h("label", {}, "Chapter name"), inp("name", "e.g. Example Zoo FrogWatch USA"),
+    h("label", {}, "Host organization (zoo, aquarium, or partner)"), inp("host", "Who hosts the chapter"),
+    h("label", {}, "Chapter coordinator"), inp("coordinator", "Name or contact"),
+    h("label", {}, "Training and season notes"), inp("notes", "e.g. next training date, monitoring season"),
+    sec("2. Service area", "The places your chapter's volunteers monitor. Add iNaturalist places, custom map boundaries, or both."),
+    placeEditor(c, () => {}),
+    sec("3. Local species list", "Use the frog and toad list your chapter gives volunteers for your region. Fill from local recordings can suggest a starting point."),
+    se,
+    h("button", { class: "ghost", style: "margin-top:8px", onclick: async () => {
+      const ids = c.places.map((p) => p.id).filter(Boolean), fl = [...(ids.length ? [{ place_id: ids.join(",") }] : []), ...c.custom.filter(boxOk).map(boxF)];
+      if (!fl.length) { st.className = "note err"; st.textContent = "Add a service area first."; return; }
+      st.className = "note"; st.textContent = "Loading…";
+      try {
+        for (const F of fl) {
+          const d = await sf(`${API}/observations/species_counts?${new URLSearchParams({ taxon_id: AMPH, sounds: "true", quality_grade: "research", per_page: "40", ...F })}`);
+          d.results.filter((r) => r.taxon && r.taxon.rank === "species").forEach((r) => { if (!c.species.some((q) => q.id === r.taxon.id)) c.species.push(toSp(r.taxon)); });
+        }
+        save(); se.redraw(); st.textContent = "Added the most-recorded species with sound in your area. Remove any your chapter doesn't cover.";
+      } catch (e) { st.className = "note err"; st.textContent = "Couldn't reach iNaturalist. Try again."; }
+    } }, "Fill from local recordings"), st,
+    sec("4. Soundalike practice sets", "Main and sub presets work inside your chapter automatically, limited to your species list."),
+    h("button", { class: "ghost", onclick: () => { back = editChapter; go(presets); } }, "Edit soundalike presets"),
+    ...shareUI(c, code, sst, sec),
+    h("button", { class: "ghost danger", style: "margin-top:26px", onclick: () => { if (confirm("Delete this chapter?")) { D.chapters = D.chapters.filter((x) => x !== c); save(); go(chapters); } } }, "Delete chapter"));
+}
+
+const USUAL = 5;
+const BK = ["nelat", "nelng", "swlat", "swlng"];
+const boxOk = (b) => !!b && BK.every((k) => Number.isFinite(b[k]));
+const boxF = (b) => ({ nelat: b.nelat, nelng: b.nelng, swlat: b.swlat, swlng: b.swlng });
+function parseBox(txt) {
+  let q; try { q = new URL(txt.trim()).searchParams; } catch (e) { q = new URLSearchParams(txt.trim().replace(/^\?/, "")); }
+  const b = {}; BK.forEach((k) => { b[k] = parseFloat(q.get(k)); });
+  return boxOk(b) ? b : null;
+}
+
+async function checkSub(x) {
+  await fix();
+  const main = D.presets.find((p) => p.id === x.main), ids = main ? main.species.map((q) => q.id).filter(Boolean) : [], pl = x.places.map((p) => p.id).filter(Boolean);
+  const fl = [...(pl.length ? [{ place_id: pl.join(",") }] : []), ...x.custom.filter(boxOk).map(boxF)];
+  if (!ids.length || !fl.length) { x.check = null; save(); return; }
+  const cnt = new Map(), g = { usual: [], rare: [], none: [] };
+  for (const F of fl) {
+    const d = await sf(`${API}/observations/species_counts?${new URLSearchParams({ taxon_id: ids.join(","), quality_grade: "research", per_page: "200", ...F })}`);
+    (d.results || []).forEach((r) => cnt.set(r.taxon.id, (cnt.get(r.taxon.id) || 0) + r.count));
+  }
+  main.species.forEach((q) => { const k = cnt.get(q.id) || 0; (k >= USUAL ? g.usual : k > 0 ? g.rare : g.none).push({ id: q.id, name: q.name, common: lab(q), count: k }); });
+  x.check = { places: [...x.places.map((p) => p.name), ...x.custom.filter(boxOk).map((b) => b.name)].join(", "), ...g }; x.verified = false; save();
+}
+
+function placeEditor(x, onChange) {
+  const chips = h("div", { class: "chips" }), st = h("div", { class: "note", style: "margin-top:6px" });
+  const draw = () => chips.replaceChildren(
+    ...x.places.map((p, i) => h("span", { class: "chip" }, p.name, h("span", { class: "x", onclick: () => { x.places.splice(i, 1); save(); draw(); onChange(); } }, "×"))),
+    ...x.custom.map((b, i) => h("span", { class: "chip", title: boxOk(b) ? "Custom boundary" : "Label only" }, "📍 " + b.name + (boxOk(b) ? "" : " (label only)"), h("span", { class: "x", onclick: () => { x.custom.splice(i, 1); save(); draw(); onChange(); } }, "×"))));
+  draw();
+  const cn = h("input", { type: "text", placeholder: "Name, e.g. Mobile-Tensaw Delta" }), cu = h("input", { type: "text", placeholder: "Paste an iNaturalist link that shows your map area" });
+  const add = () => {
+    const name = cn.value.trim(), box = cu.value.trim() ? parseBox(cu.value) : {};
+    if (!name) { st.textContent = "Give the place a name."; return; }
+    if (!box) { st.textContent = "That link has no map boundary. Zoom the iNaturalist Explore map to your area, then copy the address bar link."; return; }
+    x.custom.push({ name, ...box }); cn.value = cu.value = ""; st.textContent = ""; save(); draw(); onChange();
+  };
+  return h("div", {}, chips,
+    picker("Add an iNaturalist place…", placeSearch, (p) => p.display_name, (p) => { if (!x.places.some((y) => y.id === p.id)) { x.places.push({ id: p.id, name: p.display_name }); save(); draw(); onChange(); } }),
+    h("label", {}, "Custom boundary"), cn, h("div", { style: "height:6px" }), cu,
+    h("button", { class: "ghost", style: "margin-top:8px", onclick: add }, "Add custom place"), st,
+    h("div", { class: "note", style: "margin-top:6px" }, "For a custom boundary, open iNaturalist Explore, zoom the map to your area, and copy the link. Only the map boundary is used; other filters in the link are ignored. Leave the link blank to save a label only. No places at all means the sub preset applies anywhere."));
+}
+
+function presets() {
+  const subCard = (x) => {
+    const nm = h("input", { type: "text", value: x.name }); nm.oninput = () => { x.name = nm.value; save(); };
+    const tg = h("input", { type: "text", value: x.tags || "", placeholder: "e.g. trill, late winter, pulsed" }); tg.oninput = () => { x.tags = tg.value; save(); };
+    const se = spEditor(x.species, save), ck = h("div");
+    const useUsual = () => { x.species.splice(0, x.species.length, ...x.check.usual.map(({ id, name, common }) => ({ id, name, common }))); save(); se.redraw(); drawCheck(); };
+    const recheck = async () => {
+      ck.textContent = "Checking iNaturalist records…";
+      try { await checkSub(x); if (x.check && !x.applied) { x.applied = true; useUsual(); } } catch (e) { ck.textContent = "Couldn't reach iNaturalist. Try Re-check again."; return; }
+      drawCheck();
+    };
+    const drawCheck = () => {
+      const c = x.check;
+      if (!c) { ck.replaceChildren(h("p", { class: "note" }, "Add an iNaturalist place to see which of the main preset's species usually occur there.")); return; }
+      const grp = (t, arr) => arr.length ? [h("div", { class: "note", style: "margin-top:8px" }, t), h("div", { class: "chips" }, arr.map((q) =>
+        h("button", { class: "chip" + (x.species.some((y) => y.id === q.id) ? " on" : ""), title: "Click to add or remove",
+          onclick: () => { const i = x.species.findIndex((y) => y.id === q.id); if (i >= 0) x.species.splice(i, 1); else x.species.push({ id: q.id, name: q.name, common: q.common }); save(); se.redraw(); drawCheck(); } }, `${q.common} (${q.count})`)))] : [];
+      ck.replaceChildren(
+        x.verified ? h("div", { class: "note" }, "✓ Verified by you") : h("div", { class: "warn" }, `Verify: pulled from iNaturalist Research Grade records for ${c.places}. Compare with a local field guide or your chapter's list before relying on it.`),
+        grp(`Usually applies (${USUAL}+ records)`, c.usual), grp("Rarely recorded (1–4): check before adding", c.rare), grp("Not recorded here", c.none),
+        h("div", { class: "row", style: "margin-top:8px" },
+          h("button", { class: "ghost", onclick: useUsual }, "Use “usually applies” as species"),
+          h("button", { class: "ghost", onclick: recheck }, "Re-check area"),
+          x.verified ? "" : h("button", { class: "ghost", onclick: () => { x.verified = true; save(); drawCheck(); } }, "Mark verified")));
+    };
+    drawCheck();
+    return h("div", { class: "panel", style: "background:var(--bg2)" }, nm,
+      h("label", {}, "Areas"), placeEditor(x, recheck), ck,
+      h("label", {}, "Other criteria (comma-separated tags)"), tg,
+      h("label", {}, "Species in this sub preset"), se,
+      h("button", { class: "ghost danger", style: "margin-top:8px", onclick: () => { if (confirm("Delete this sub preset?")) { D.subs = D.subs.filter((y) => y !== x); save(); presets(); } } }, "Delete sub preset"));
+  };
+  app.replaceChildren(
+    h("button", { class: "ghost", onclick: () => { pool = null; go(back || home); } }, "← Back"),
+    h("h2", { style: "margin-top:14px" }, "Soundalike presets"),
+    h("p", { class: "sub" }, "Main presets hold every species that sounds alike, with basic call info but no area limits. Sub presets are smaller sets for specific areas and other criteria. Two species is fine."),
+    D.presets.map((p) => {
+      const nm = h("input", { type: "text", value: p.name }); nm.oninput = () => { p.name = nm.value; save(); };
+      const ct = h("input", { type: "text", value: p.callType || "", placeholder: "e.g. fast pulsed trill" }); ct.oninput = () => { p.callType = ct.value; save(); };
+      const nt = h("input", { type: "text", value: p.notes || "", placeholder: "e.g. pulse rate, pitch, how to tell them apart" }); nt.oninput = () => { p.notes = nt.value; save(); };
+      return h("div", { class: "panel" }, h("div", { class: "note" }, "Main preset"), nm,
+        h("label", {}, "Call type"), ct, h("label", {}, "Basic info"), nt,
+        h("label", {}, "Species"), spEditor(p.species, save),
+        h("label", {}, "Sub presets"),
+        D.subs.filter((x) => x.main === p.id).map(subCard),
+        h("div", { class: "row", style: "margin-top:8px" },
+          h("button", { class: "ghost", onclick: () => { D.subs.push({ id: uid(), main: p.id, name: "New sub preset", places: [], custom: [], tags: "", species: p.species.map((q) => ({ ...q })) }); save(); presets(); } }, "Add sub preset"),
+          h("button", { class: "ghost danger", onclick: () => { if (confirm("Delete this main preset and its sub presets?")) { D.presets = D.presets.filter((x) => x !== p); D.subs = D.subs.filter((x) => x.main !== p.id); save(); presets(); } } }, "Delete main preset")));
+    }),
+    h("button", { class: "btn", onclick: () => { D.presets.push({ id: uid(), name: "New main preset", callType: "", notes: "", species: [] }); save(); presets(); } }, "Add a main preset"),
+  );
+}
+
+// ---- quiz ----
+const PI = {};
+const anc = async (id) => { if (!(id in PI)) { try { PI[id] = (await sf(`${API}/places/${id}`)).results[0].ancestor_place_ids || []; } catch (e) { PI[id] = []; } } return PI[id]; };
+function startQuiz(m) { tagSel = null; mode = m; pid = null; pool = null; place = null; sc = { c: 0, t: 0 }; recent = []; used = new Set(); qn = 0; go(quiz); }
+
+function quiz() {
+  const c = mode === "chapter" ? chapter : null;
+  const baseIds = c ? c.places.map((p) => p.id).filter(Boolean) : place && place.id ? [place.id] : [];
+  const okp = (p) => p.species.filter((x) => x.id && (!c || c.species.some((y) => y.id === x.id)));
+  const mains = D.presets.filter((p) => okp(p).length >= 2);
+  if (pid && !D.presets.some((p) => p.id === pid) && !D.subs.some((x) => x.id === pid)) pid = null;
+  const setP = (id) => { pid = id; pool = null; quiz(); };
+  const chip = (p) => h("button", { class: "chip" + (pid === p.id ? " on" : ""), title: [p.callType, p.notes, p.species.map(lab).join(", ")].filter(Boolean).join(" — "), onclick: () => setP(p.id) }, p.name);
+  const subRow = h("div", { class: "chips" }), tagRow = h("div", { class: "chips" });
+  const chips = h("div", {},
+    h("div", { class: "chips" }, h("button", { class: "chip" + (pid ? "" : " on"), onclick: () => setP(null) }, c ? "All chapter species" : "All amphibians"), mains.map(chip)),
+    h("label", {}, "Sub presets that apply here"), subRow, tagRow);
+  const refreshSubs = async () => {
+    const sel = D.subs.find((x) => x.id === pid), pm = sel ? sel.main : pid, ba = (await Promise.all(baseIds.map(anc))).flat(), out = [];
+    for (const x of D.subs) {
+      if ((pm && x.main !== pm) || okp(x).length < 2) continue;
+      const ps = (x.places || []).filter((p) => p.id);
+      let ap = !ps.length || !baseIds.length;
+      for (const p of ps) { if (ap) break; ap = baseIds.includes(p.id) || ba.includes(p.id) || (await anc(p.id)).some((a) => baseIds.includes(a)); }
+      if (ap) out.push(x);
+    }
+    const tg = (x) => (x.tags || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+    const shown = out.filter((x) => !tagSel || tg(x).includes(tagSel));
+    subRow.replaceChildren(...(shown.length ? shown.map(chip) : [h("span", { class: "note" }, "None apply here. Add some under Edit presets.")]));
+    tagRow.replaceChildren(...[...new Set(out.flatMap(tg))].map((t) => h("button", { class: "chip" + (tagSel === t ? " on" : ""), onclick: () => { tagSel = tagSel === t ? null : t; refreshSubs(); } }, t)));
+  };
+  const seg = h("div", { class: "seg" }, [["choice", "Multiple choice"], ["type", "Type the name"]].map(([v, l]) => h("button", { class: ans === v ? "on" : "", onclick: () => { ans = v; quiz(); } }, l)));
+  const num = h("input", { type: "number", min: 1, max: 5, value: n, style: "width:70px" });
+  num.onchange = () => { n = Math.max(1, Math.min(5, parseInt(num.value) || 1)); num.value = n; };
+  ui = { status: h("div", { class: "note" }), pool: h("span", { class: "note" }), score: h("strong", {}, `${sc.c} / ${sc.t}`), card: h("div", { class: "panel", style: "display:none" }) };
+  const loc = c ? h("p", { class: "note" }, [c.host, "Area: " + areaText(c)].filter(Boolean).join(" · "))
+    : h("div", {}, h("label", {}, "Location filter (optional)"),
+        place ? h("div", { class: "row" }, h("span", {}, place.display_name), h("button", { class: "ghost", onclick: () => { place = null; pool = null; quiz(); } }, "Clear"))
+              : picker("e.g. Alabama, Escambia County FL", placeSearch, (p) => p.display_name, (p) => { place = p; pool = null; quiz(); }));
+  app.replaceChildren(
+    h("div", { class: "row" },
+      h("button", { class: "ghost", onclick: () => go(c ? chapters : home) }, c ? "← Chapters" : "← Menu"), h("span", { class: "sp" }),
+      h("button", { class: "ghost", onclick: () => { back = quiz; go(presets); } }, "Edit presets")),
+    h("h2", { style: "margin-top:14px" }, c ? c.name : "Free use"), loc,
+    h("label", {}, "Main presets (all species that sound alike)"), chips,
+    h("div", { class: "row" }, seg, h("span", { class: "note" }, "Clips per question"), num),
+    h("div", { class: "row", style: "margin:16px 0 10px" }, h("span", {}, "Score: ", ui.score), ui.pool),
+    ui.status, ui.card);
+  refreshSubs();
+  loadQ();
+}
+
+async function getPool() {
+  if (pool) return pool;
+  await fix();
+  const c = mode === "chapter" ? chapter : null, pr = pid && (D.presets.find((p) => p.id === pid) || D.subs.find((x) => x.id === pid));
+  let ids;
+  if (pr) ids = pr.species.map((q) => q.id).filter((i) => i && (!c || c.species.some((y) => y.id === i)));
+  else if (c) ids = c.species.map((q) => q.id).filter(Boolean);
+  else ids = [AMPH];
+  if (!ids.length) return (pool = []);
+  const baseIds = c ? c.places.map((p) => p.id).filter(Boolean) : place && place.id ? [place.id] : [];
+  const ps = pr && pr.places ? pr.places.filter((p) => p.id) : [], bx = pr && pr.custom ? pr.custom.filter(boxOk).map(boxF) : [];
+  let fl = [...(baseIds.length ? [{ place_id: baseIds.join(",") }] : []), ...(c ? c.custom.filter(boxOk).map(boxF) : [])];
+  if (ps.length) {
+    if (!baseIds.length) fl = [{ place_id: ps.map((p) => p.id).join(",") }];
+    else {
+      const ba = (await Promise.all(baseIds.map(anc))).flat();
+      if (!ps.some((p) => baseIds.includes(p.id) || ba.includes(p.id))) {
+        const nar = [];
+        for (const p of ps) if ((await anc(p.id)).some((a) => baseIds.includes(a))) nar.push(p.id);
+        if (nar.length) fl = [{ place_id: nar.join(",") }];
+      }
+    }
+  }
+  if (bx.length) fl = (ps.length ? fl : []).concat(bx);
+  const m = new Map();
+  for (const F of fl.length ? fl : [{}]) {
+    const d = await sf(`${API}/observations/species_counts?${new URLSearchParams({ taxon_id: ids.join(","), sounds: "true", quality_grade: "research", per_page: "200", ...F })}`);
+    (d.results || []).map((r) => r.taxon).filter((t) => t && t.rank === "species").forEach((t) => { if (!m.has(t.id)) m.set(t.id, { ...toSp(t), fs: [] }); m.get(t.id).fs.push(F); });
+  }
+  return (pool = [...m.values()]);
+}
+
+async function media(tid, F) {
+  const b = { taxon_id: tid, quality_grade: "research", sounds: "true", per_page: "1", ...F };
+  const total = Math.min((await sf(`${API}/observations?${new URLSearchParams(b)}`)).total_results || 0, 10000);
+  if (!total) return null;
+  const items = [], obs = new Set(); let first = null;
+  for (let a = 0; a < Math.max(n, 4) && items.length < n; a++) {
+    const o = ((await sf(`${API}/observations?${new URLSearchParams({ ...b, page: Math.floor(Math.random() * total) + 1 })}`)).results || [])[0];
+    if (!o || obs.has(o.id) || used.has(o.id)) continue;
+    const clips = (o.sounds || []).filter((q) => q.file_url);
+    if (!clips.length) continue;
+    obs.add(o.id); first = first || o;
+    clips.forEach((q) => { if (items.length < n) items.push({ url: q.file_url }); });
+  }
+  return items.length ? { items, obs: [...obs], uri: first.uri, user: (first.user && first.user.login) || "unknown" } : null;
+}
+
+const fail = (m) => { ui.status.className = "note err"; ui.status.textContent = m; };
+
+async function loadQ() {
+  const mine = ui;
+  ui.card.style.display = "none"; ui.status.className = "note"; ui.status.textContent = "Loading…";
+  let P;
+  try { P = await getPool(); } catch (e) { fail("Couldn't reach iNaturalist. Check your connection and try again."); return; }
+  if (mine !== ui) return;
+  ui.pool.textContent = P.length + " species in this set";
+  if (P.length < 2) { fail(pid ? "Fewer than 2 species in this preset have sound recordings here. Pick another preset or widen the area." : "Fewer than 2 species matched. Add species to this chapter or widen the area."); return; }
+  const k = Math.min(10, Math.max(P.length - 2, 0)), rc = k ? recent.slice(-k) : [];
+  let sp = null, res = null;
+  for (let i = 0; i < 8 && !res; i++) {
+    const av = P.filter((s) => !rc.includes(s.id)), pk = av.length ? av : P;
+    sp = pk[Math.floor(Math.random() * pk.length)];
+    try { res = await media(sp.id, sp.fs[Math.floor(Math.random() * sp.fs.length)]); } catch (e) { fail("Couldn't reach iNaturalist. Check your connection and try again."); return; }
+  }
+  if (!res) { fail("Couldn't find a fresh recording. Try again or widen the area."); return; }
+  if (mine !== ui) return;
+  res.obs.forEach((i) => used.add(i)); if (used.size > 300) used.clear();
+  recent.push(sp.id);
+  current = { sp, res, choices: shuf([sp, ...shuf(P.filter((s) => s.id !== sp.id)).slice(0, 3)]) };
+  qn++; drawQ();
+}
+
+function drawQ() {
+  const { sp, res, choices } = current, { card } = ui;
+  ui.status.textContent = "";
+  let fin = false;
+  const fb = h("div", { class: "fb" }), nx = h("button", { class: "btn", style: "display:none", onclick: loadQ }, "Next question");
+  const sk = h("button", { class: "ghost", onclick: loadQ }, "Skip bad clip");
+  const end = (ok, msg) => {
+    fin = true; sc.t++; if (ok) sc.c++;
+    ui.score.textContent = `${sc.c} / ${sc.t}`; fb.className = "fb " + (ok ? "ok" : "bad"); fb.textContent = msg;
+    nx.style.display = "inline-block"; sk.style.display = "none";
+  };
+  const opts = h("div", {}, choices.map((c) => h("button", { class: "opt", onclick: (e) => {
+    if (fin) return;
+    const ok = c.id === sp.id;
+    [...opts.children].forEach((b, i) => { b.disabled = true; if (choices[i].id === sp.id) b.classList.add("ok"); });
+    if (!ok) e.currentTarget.classList.add("bad");
+    end(ok, ok ? `Correct — ${sp.common}.` : `Not quite. It's a ${sp.common} (${sp.name}).`);
+  } }, c.common)));
+  const ti = h("input", { type: "text", placeholder: "Type a common or scientific name…", autocomplete: "off" });
+  const typed = () => {
+    if (fin) return;
+    const g = norm(ti.value), ok = !!g && (g === norm(sp.common) || g === norm(sp.name));
+    ti.disabled = true;
+    end(ok, ok ? `Correct — ${sp.common}.` : `Not quite — you said "${ti.value.trim() || "(nothing)"}". It's a ${sp.common} (${sp.name}).`);
+  };
+  ti.addEventListener("keydown", (e) => { if (e.key === "Enter") typed(); });
+  card.replaceChildren(
+    h("div", { class: "note" }, `Question ${qn} · Identify the call`),
+    res.items.map((it, i) => h("div", { class: "clip" }, res.items.length > 1 ? h("div", { class: "note" }, `Clip ${i + 1} of ${res.items.length}`) : "", h("audio", { controls: true, src: it.url }))),
+    ans === "choice" ? opts : h("div", { class: "row" }, h("div", { class: "sp" }, ti), h("button", { class: "btn", onclick: typed }, "Guess")),
+    fb,
+    h("div", { class: "row" }, h("span", { class: "note sp" }, `Recorded by ${res.user} · `, h("a", { href: res.uri, target: "_blank", rel: "noopener" }, "view on iNaturalist")), sk, nx));
+  card.style.display = "block";
+}
+
+go(home);
+fix().then((c) => { if (c && cur !== quiz) cur(); });
+})();
+</script>
+</body>
+</html>
