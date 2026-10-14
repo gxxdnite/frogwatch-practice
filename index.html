@@ -1,48 +1,4 @@
 <!DOCTYPE html>
-<!--
-SHARED CHAPTERS SETUP (one time, free). Without it the app still works, but chapters stay on this device.
-1. Go to console.firebase.google.com and add a project (Analytics can be off).
-2. Build > Realtime Database > Create database (locked mode is fine).
-3. Build > Authentication > Get started > Sign-in method > Anonymous > Enable.
-4. Realtime Database > Rules tab: replace everything with the rules below, then Publish.
-5. Project settings (gear) > General: copy the Web API key (add a web app with the </> icon if none exists).
-   Realtime Database > Data tab: copy the database URL.
-6. Paste both into FB_URL and FB_KEY near the top of the script below.
-
-RULES:
-{
- "rules": {
-  "directory": {
-   ".read": true,
-   "$cid": {
-    ".write": "auth != null && (!data.exists() || data.child('owner').val() === auth.uid)",
-    ".validate": "!newData.exists() || newData.child('owner').val() === auth.uid"
-   }
-  },
-  "chapters": {
-   "$cid": {
-    ".read": "auth != null && (root.child('directory/'+$cid+'/access').val() === 'public' || root.child('directory/'+$cid+'/owner').val() === auth.uid || root.child('members/'+$cid+'/'+auth.uid).val() === true)",
-    ".write": "auth != null && root.child('directory/'+$cid+'/owner').val() === auth.uid"
-   }
-  },
-  "members": {
-   "$cid": {
-    ".write": "auth != null && root.child('directory/'+$cid+'/owner').val() === auth.uid"
-   }
-  },
-  "requests": {
-   "$cid": {
-    ".read": "auth != null && root.child('directory/'+$cid+'/owner').val() === auth.uid",
-    ".write": "auth != null && root.child('directory/'+$cid+'/owner').val() === auth.uid",
-    "$uid": {
-     ".read": "auth != null && $uid === auth.uid",
-     ".write": "auth != null && $uid === auth.uid"
-    }
-   }
-  }
- }
-}
--->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -120,7 +76,7 @@ const h = (t, a = {}, ...k) => {
   k.flat(9).forEach((c) => e.append(c instanceof Node ? c : document.createTextNode(c == null ? "" : c)));
   return e;
 };
-// replaceChildren that also accepts arrays (lists of elements) and skips empty values
+
 const _rc = Element.prototype.replaceChildren;
 Element.prototype.replaceChildren = function (...k) { return _rc.apply(this, k.flat(9).filter((c) => c !== "" && c != null && c !== false)); };
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -130,9 +86,9 @@ const shuf = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.fl
 const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
 const lab = (s) => s.common || s.name || s.q;
 
-// ---- shared chapters (Firebase). Fill these in; see setup notes at the top of the file ----
-const FB_URL = "https://frogwatch-practice-default-rtdb.firebaseio.com";   // e.g. https://your-project-default-rtdb.firebaseio.com
-const FB_KEY = "AIzaSyDfglPkl01VIP0brl6nasfsQKmnBdAqeoQ";   // Web API key from Firebase project settings
+
+const FB_URL = "https://frogwatch-practice-default-rtdb.firebaseio.com";   
+const FB_KEY = "AIzaSyDfglPkl01VIP0brl6nasfsQKmnBdAqeoQ";   
 const SHARED = !!(FB_URL && FB_KEY);
 let tok = null;
 async function auth() {
@@ -177,7 +133,6 @@ function explain(e) {
 }
 async function unshare(cid) { for (const k of ["chapters", "members", "requests", "directory"]) await db("DELETE", `${k}/${cid}`); }
 
-// ---- STARTER DATA (edit here, or just use the in-app editors) ----
 // Species are written by common name; the app looks up the iNaturalist IDs itself.
 const S = (...n) => n.map((q) => ({ id: null, q }));
 const SEED = {
@@ -197,7 +152,6 @@ const SEED = {
   ],
 };
 
-// ---- saved data (lives in this browser) ----
 let D;
 try { D = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
 if (!D || !D.presets || !D.chapters) D = structuredClone(SEED);
@@ -214,7 +168,6 @@ const save = () => {
   if (SHARED && chapter && chapter.share && chapter.share.cid && cur === editChapter) { clearTimeout(pushT); pushT = setTimeout(() => publish(chapter).catch(() => {}), 2000); }
 };
 
-// ---- look up IDs for starter species / places ----
 async function resolve(list) {
   let ch = false;
   for (const s of list) {
@@ -241,7 +194,6 @@ async function fixAll() {
 let fx = null;
 const fix = () => fx || (fx = fixAll().finally(() => { fx = null; }));
 
-// ---- search-as-you-type picker ----
 function picker(ph, search, render, pick) {
   const inp = h("input", { type: "text", placeholder: ph }), box = h("div", { style: "display:none" });
   const run = deb(async (q) => {
@@ -262,7 +214,6 @@ const spRender = (t) => [t.preferred_common_name || t.name, h("i", {}, t.name)];
 const toSp = (t) => ({ id: t.id, name: t.name, common: t.preferred_common_name || t.name });
 const placeSearch = async (q) => (await sf(`${API}/places/autocomplete?q=${encodeURIComponent(q)}&per_page=8`)).results || [];
 
-// species list editor: chips with × plus an amphibian search box
 function spEditor(list, onChange) {
   const chips = h("div", { class: "chips" });
   const draw = () => chips.replaceChildren(...list.map((s, i) =>
@@ -275,7 +226,6 @@ function spEditor(list, onChange) {
   return el;
 }
 
-// ---- navigation ----
 let ep, tagSel, cur, back, mode, chapter, place, pid, pool, ans = "choice", n = 1, sc = { c: 0, t: 0 }, recent = [], used = new Set(), qn = 0, ui, current;
 const go = (f) => { cur = f; f(); window.scrollTo(0, 0); };
 
