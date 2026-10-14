@@ -192,7 +192,7 @@ const SEED = {
     { id: "s1", main: "p2", name: "Alabama chorus frogs", places: [{ name: "Alabama" }], custom: [], tags: "trill, late winter", species: S("Upland Chorus Frog", "Southern Chorus Frog") },
   ],
   chapters: [
-    { id: "c1", name: "Example FrogWatch USA chapter (edit me)", host: "Your zoo, aquarium, or partner organization", coordinator: "", notes: "", places: [{ name: "Alabama" }], custom: [],
+    { id: "c1", name: "Example FrogWatchUSA chapter (edit me)", host: "Your zoo, aquarium, or partner organization", coordinator: "", notes: "", places: [{ name: "Alabama" }], custom: [],
       species: S("Spring Peeper", "Cope's Gray Treefrog", "Green Treefrog", "Squirrel Treefrog", "Pine Woods Treefrog", "Barking Treefrog", "Southern Leopard Frog", "American Bullfrog", "Green Frog", "Southern Toad", "Fowler's Toad", "Eastern Narrow-mouthed Toad", "Upland Chorus Frog", "Southern Chorus Frog") },
   ],
 };
@@ -281,10 +281,10 @@ const go = (f) => { cur = f; f(); window.scrollTo(0, 0); };
 
 function home() {
   app.replaceChildren(
-    h("h1", {}, "Frog & Toad Call Trainer"),
-    h("p", { class: "sub" }, "Practice frog and toad calls with real, Research Grade recordings from iNaturalist. Made for FrogWatch USA chapters; this is an unofficial tool, not affiliated with FrogWatch USA or the AZA."),
-    h("button", { class: "big", onclick: () => startQuiz("free") }, h("b", {}, "Free use"), h("span", {}, "General practice with any amphibian, with an optional location filter.")),
-    h("button", { class: "big", onclick: () => go(chapters) }, h("b", {}, "FrogWatch USA chapter"), h("span", {}, "Set up or choose your chapter, then practice only its local frogs and toads.")),
+    h("h1", {}, "Frog Call Trainer"),
+    h("p", { class: "sub" }, "Practice frog calls with Research Grade recordings from iNaturalist and a mode made for FrogWatchUSA chapters; this is an unofficial tool, not affiliated with FrogWatchUSA or the AZA."),
+    h("button", { class: "big", onclick: () => startQuiz("free") }, h("b", {}, "Free Play"), h("span", {}, "General practice with an optional location filter.")),
+    h("button", { class: "big", onclick: () => go(chapters) }, h("b", {}, "FrogWatchUSA chapter"), h("span", {}, "Set up or choose your chapter, then only practice local species.")),
     h("div", { class: "row" },
       h("button", { class: "ghost", onclick: () => { back = home; go(presets); } }, "Manage soundalike presets"),
       h("button", { class: "ghost danger", onclick: () => { if (confirm("Replace all chapters and presets with the starter set?")) { D = structuredClone(SEED); save(); home(); fix().then((c) => c && cur === home && home()); } } }, "Reset to starter data")),
@@ -335,7 +335,7 @@ async function openRemote(m, box) {
     chapter = { ...c, places: c.places || [], custom: c.custom || [], species: c.species || [] };
     startQuiz("chapter");
   } catch (e) {
-    if (e.message === "denied") accessForm(m, box); else { box.className = "note err"; box.textContent = "Couldn't open that chapter. Check your connection and try again."; }
+    if (e.message === "denied") accessForm(m, box); else { box.className = "note err"; box.textContent = "Couldn't open the chapter. Check your connection and try again."; }
   }
 }
 
@@ -367,10 +367,10 @@ function shareUI(c, code, sst, sec) {
   const now = c.share ? c.share.access : "device";
   const seg2 = h("div", { class: "seg" }, [["device", "Keep on this device"], ["public", "Share publicly"], ["request", "Share, approve requests"]].map(([v, l]) => h("button", { class: now === v ? "on" : "", onclick: () => setAcc(v) }, l)));
   return [
-    sec("5. Share with volunteers", SHARED ? "Public chapters appear in everyone's search and open for anyone. With approval, anyone can find the chapter but only people you approve can open it." : "Shared chapters are off until Firebase is set up (see the notes at the top of this file). You can still send an offline share code."),
+    sec("5. Share with volunteers", SHARED ? "Public chapters appear in everyone's search and are open for anyone. Anyone can find the chapter but only people you approve can access it."),
     SHARED ? [seg2, msg] : "",
     SHARED && c.share && c.share.access === "request" ? [h("button", { class: "ghost", style: "margin-top:10px", onclick: loadReq }, "Check access requests"), rq] : "",
-    SHARED && c.share ? h("p", { class: "note" }, "Edits are published automatically a couple of seconds after you make them.") : "",
+    SHARED && c.share ? h("p", { class: "note" }, "Edits are saved automatically.") : "",
     h("button", { class: "ghost", style: "margin-top:10px", onclick: async () => {
       code.value = enc({ v: 1, chapter: c, presets: D.presets, subs: D.subs }); code.style.display = "block"; code.select();
       try { await navigator.clipboard.writeText(code.value); sst.textContent = "Copied. Volunteers can paste it under “Import a chapter”."; } catch (e) { sst.textContent = "Copy the code above and send it to your volunteers."; }
@@ -393,7 +393,7 @@ function chapters() {
   if (SHARED) { dmsg.textContent = "Loading chapters…"; db("GET", "directory").then((d) => { dir = d || {}; dmsg.textContent = ""; draw(); }).catch((e) => { dmsg.className = "note err"; dmsg.textContent = "Couldn't load the shared directory: " + explain(e); }); }
   app.replaceChildren(
     h("button", { class: "ghost", onclick: () => go(home) }, "← Menu"),
-    h("h2", { style: "margin-top:14px" }, "Find your FrogWatch USA chapter"),
+    h("h2", { style: "margin-top:14px" }, "Find your FrogWatchUSA chapter"),
     SHARED ? [q, dmsg, res] : h("p", { class: "note" }, "Shared chapters are off. Add your Firebase details at the top of the file (setup notes are in the comment at the very top) to search and open chapters from everyone. Chapters on this device still work."),
     h("h2", { style: "margin-top:26px" }, "My chapters"),
     D.chapters.length ? "" : h("p", { class: "note" }, "None yet. Set one up or import a share code from your coordinator."),
@@ -432,10 +432,10 @@ function editChapter() {
   const code = h("textarea", { readonly: true, style: taStyle + ";display:none;margin-top:8px" });
   app.replaceChildren(
     h("button", { class: "ghost", onclick: () => go(chapters) }, "← Done"),
-    h("h2", { style: "margin-top:14px" }, "Set up your FrogWatch USA chapter"),
+    h("h2", { style: "margin-top:14px" }, "Set up your FrogWatchUSA chapter"),
     h("p", { class: "note", style: "margin:0" }, "Everything saves automatically as you type. Tap Done when you're finished."),
     sec("1. About your chapter"),
-    h("label", {}, "Chapter name"), inp("name", "e.g. Example Zoo FrogWatch USA"),
+    h("label", {}, "Chapter name"), inp("name", "e.g. Example Zoo FrogWatchUSA"),
     h("label", {}, "Host organization (zoo, aquarium, or partner)"), inp("host", "Who hosts the chapter"),
     h("label", {}, "Chapter coordinator"), inp("coordinator", "Name or contact"),
     h("label", {}, "Training and season notes"), inp("notes", "e.g. next training date, monitoring season"),
